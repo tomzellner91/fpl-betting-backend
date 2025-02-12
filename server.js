@@ -4,42 +4,56 @@ const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
+const axios = require('axios');
+const cron = require('node-cron');
 require('dotenv').config();
 
 const app = express();
 const pool = new Pool({ connectionString: 'postgresql://fpl_betting_db_user:yTPRRJ9PlvdQknaLZZIKAPOdcrdurigF@dpg-cumib12n91rc73dvdtd0-a.oregon-postgres.render.com/fpl_betting_db', ssl: { rejectUnauthorized: false } });
 const SECRET_KEY = process.env.JWT_SECRET || 'supersecretkey';
+const SPORTS_ODDS_API_KEY = process.env.SPORTS_ODDS_API_KEY;
+const SPORTS_ODDS_API_URL = 'https://api.sportsodds.io/v1/odds';
 
 app.use(cors());
 app.use(bodyParser.json());
 
-// User Registration
-app.post('/register', async (req, res) => {
-    const { username, email, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+// Function to fetch and update odds
+async function updateOdds() {
     try {
-        const result = await pool.query(
-            'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username',
-            [username, email, hashedPassword]
-        );
-        res.status(201).json(result.rows[0]);
+        const response = await axios.get(`${SPORTS_ODDS_API_URL}`, {
+            headers: { 'Authorization': `Bearer ${SPORTS_ODDS_API_KEY}` }
+        });
+        
+        if (response.data && response.data.games) {
+            for (const game of response.data.games) {
+                await pool.query(
+                    `INSERT INTO games (league, home_team, away_team, game_date, moneyline_home, moneyline_away, spread_home, spread_away, spread_value)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                     ON CONFLICT (league, home_team, away_team, game_date) DO UPDATE 
+                     SET moneyline_home = EXCLUDED.moneyline_home, moneyline_away = EXCLUDED.moneyline_away,
+                         spread_home = EXCLUDED.spread_home, spread_away = EXCLUDED.spread_away, spread_value = EXCLUDED.spread_value`,
+                    [game.league, game.home_team, game.away_team, game.game_date, game.odds.moneyline_home, game.odds.moneyline_away, 
+                     game.odds.spread_home, game.odds.spread_away, game.odds.spread_value]
+                );
+            }
+            console.log('Odds updated successfully.');
+        }
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error updating odds:', error);
     }
+}
+
+// Schedule daily updates at midnight UTC
+cron.schedule('0 0 * * *', () => {
+    console.log('Running scheduled odds update...');
+    updateOdds();
 });
 
-// User Login
-app.post('/login', async (req, res) => {
-    const { email, password } = req.body;
+// Manual odds update route
+app.get('/update-odds', async (req, res) => {
     try {
-        const user = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (user.rows.length === 0) return res.status(400).json({ error: 'Invalid email or password' });
-        
-        const isValid = await bcrypt.compare(password, user.rows[0].password_hash);
-        if (!isValid) return res.status(400).json({ error: 'Invalid email or password' });
-        
-        const token = jwt.sign({ id: user.rows[0].id, username: user.rows[0].username }, SECRET_KEY, { expiresIn: '7d' });
-        res.json({ token });
+        await updateOdds();
+        res.json({ message: 'Odds updated successfully' });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
