@@ -45,11 +45,12 @@ app.post('/login', async (req, res) => {
     }
 });
 
-// Fetch NFL Games (Stub for now, will integrate API later)
+// Fetch NBA and NFL Games
 app.get('/games', async (req, res) => {
     try {
-        const games = await pool.query('SELECT * FROM nfl_games WHERE game_date >= NOW() ORDER BY game_date ASC');
-        res.json(games.rows);
+        const nbaGames = await pool.query('SELECT * FROM nba_games WHERE game_date >= NOW() ORDER BY game_date ASC');
+        const nflGames = await pool.query('SELECT * FROM nfl_games WHERE game_date >= NOW() ORDER BY game_date ASC');
+        res.json({ nba: nbaGames.rows, nfl: nflGames.rows });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
