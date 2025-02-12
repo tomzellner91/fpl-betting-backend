@@ -7,7 +7,7 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
-const pool = new Pool({ connectionString: 'postgresql://nfl_betting_db_user:mq4f9daZLNjdpFtkHCH1RXRP9A56lEZF@dpg-cumgks5umphs7386qmug-a.oregon-postgres.render.com/nfl_betting_db', ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: 'postgresql://fpl_betting_db_user:yTPRRJ9PlvdQknaLZZIKAPOdcrdurigF@dpg-cumib12n91rc73dvdtd0-a.oregon-postgres.render.com/fpl_betting_db', ssl: { rejectUnauthorized: false } });
 const SECRET_KEY = process.env.JWT_SECRET || 'supersecretkey';
 
 app.use(cors());
