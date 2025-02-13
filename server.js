@@ -20,25 +20,34 @@ app.use(bodyParser.json());
 // Function to fetch and update NBA and NFL games
 async function updateGames() {
     try {
-        const response = await axios.get(`${SPORTS_ODDS_API_URL}`, {
-            headers: { 'Authorization': `Bearer ${SPORTS_ODDS_API_KEY}` }
-        });
+        console.log("Fetching games from API...");
         
-        if (response.data && response.data.games) {
-            for (const game of response.data.games) {
-                const tableName = game.league === 'NBA' ? 'nba_games' : 'nfl_games';
-                await pool.query(
-                    `INSERT INTO ${tableName} (league, home_team, away_team, game_date, moneyline_home, moneyline_away, spread_home, spread_away, spread_value)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                     ON CONFLICT (home_team, away_team, game_date) DO UPDATE 
-                     SET moneyline_home = EXCLUDED.moneyline_home, moneyline_away = EXCLUDED.moneyline_away,
-                         spread_home = EXCLUDED.spread_home, spread_away = EXCLUDED.spread_away, spread_value = EXCLUDED.spread_value`,
-                    [game.league, game.home_team, game.away_team, game.game_date, game.odds.moneyline_home, game.odds.moneyline_away, 
-                     game.odds.spread_home, game.odds.spread_away, game.odds.spread_value]
-                );
+        const leagues = ['basketball_nba', 'americanfootball_nfl'];
+        
+        for (const league of leagues) {
+            const response = await axios.get(`${SPORTS_ODDS_API_URL}${league}/odds/?apiKey=${SPORTS_ODDS_API_KEY}&regions=us&markets=spreads,h2h&oddsFormat=decimal`);
+            
+            if (response.data && response.data.length > 0) {
+                for (const game of response.data) {
+                    const tableName = league === 'basketball_nba' ? 'nba_games' : 'nfl_games';
+                    
+                    await pool.query(
+                        `INSERT INTO ${tableName} (league, home_team, away_team, game_date, moneyline_home, moneyline_away, spread_home, spread_away, spread_value)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                         ON CONFLICT (home_team, away_team, game_date) DO UPDATE 
+                         SET moneyline_home = EXCLUDED.moneyline_home, moneyline_away = EXCLUDED.moneyline_away,
+                             spread_home = EXCLUDED.spread_home, spread_away = EXCLUDED.spread_away, spread_value = EXCLUDED.spread_value`,
+                        [league.toUpperCase(), game.home_team, game.away_team, game.commence_time, 
+                         game.bookmakers[0]?.markets[1]?.outcomes[0]?.price || null, 
+                         game.bookmakers[0]?.markets[1]?.outcomes[1]?.price || null, 
+                         game.bookmakers[0]?.markets[0]?.outcomes[0]?.point || null, 
+                         game.bookmakers[0]?.markets[0]?.outcomes[1]?.point || null, 
+                         game.bookmakers[0]?.markets[0]?.outcomes[0]?.price || null]
+                    );
+                }
             }
-            console.log('Games updated successfully.');
         }
+        console.log('Games updated successfully.');
     } catch (error) {
         console.error('Error updating games:', error);
     }
