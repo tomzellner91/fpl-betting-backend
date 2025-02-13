@@ -19,12 +19,14 @@ app.use(bodyParser.json());
 
 // Function to clear previous week's games before updating
 async function purgeOldGames() {
+    const gameWeekStart = `date_trunc('week', NOW()) + INTERVAL '1 day'`; // Tuesday start
+    const gameWeekEnd = `date_trunc('week', NOW()) + INTERVAL '7 days'`; // Monday end
     try {
         console.log("Purging old games...");
-        await pool.query("DELETE FROM nba_games WHERE game_date < date_trunc('week', NOW())");
-        await pool.query("DELETE FROM nfl_games WHERE game_date < date_trunc('week', NOW())");
-        await pool.query("DELETE FROM user_selections WHERE created_at < date_trunc('week', NOW())");
-        console.log("Old games and selections purged successfully.");
+        await pool.query(`DELETE FROM nba_games WHERE game_date < ${gameWeekStart} OR game_date > ${gameWeekEnd}`);
+        await pool.query(`DELETE FROM nfl_games WHERE game_date < ${gameWeekStart} OR game_date > ${gameWeekEnd}`);
+        // Not purging user selections, only game data
+        console.log("Old games purged successfully.");
     } catch (error) {
         console.error("Error purging old games:", error);
     }
