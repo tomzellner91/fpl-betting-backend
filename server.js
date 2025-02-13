@@ -32,7 +32,7 @@ async function purgeOldGames() {
 
 // Function to fetch and update NBA and NFL games
 async function updateGames() {
-    await purgeOldGames(); // Ensure purge happens before every update
+    purgeOldGames(); // Ensure purge happens before every update
     try {
         console.log("Fetching games from API...");
         
@@ -68,7 +68,7 @@ async function updateGames() {
 }
 
 // Schedule weekly purge and daily updates at 4 AM ET
-cron.schedule('0 4 * * 0', async () => { // Runs every Sunday at 4 AM ET
+cron.schedule('0 4 * * 0', () => { // Runs every Sunday at 4 AM ET
     console.log('Running scheduled weekly purge...');
     await purgeOldGames();
 });
