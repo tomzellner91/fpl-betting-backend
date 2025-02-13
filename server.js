@@ -19,8 +19,8 @@ app.use(bodyParser.json());
 
 // Function to clear previous week's games before updating
 async function purgeOldGames() {
-    const gameWeekStart = `date_trunc('week', NOW()) + INTERVAL '1 day'`; // Tuesday start
-    const gameWeekEnd = `date_trunc('week', NOW()) + INTERVAL '7 days'`; // Monday end
+    const gameWeekStart = "date_trunc('week', NOW()) + INTERVAL '1 day'"; // Tuesday start
+    const gameWeekEnd = "date_trunc('week', NOW()) + INTERVAL '7 days'"; // Monday end
     try {
         console.log("Purging old games...");
         await pool.query(`DELETE FROM nba_games WHERE game_date < ${gameWeekStart} OR game_date > ${gameWeekEnd}`);
@@ -34,7 +34,7 @@ async function purgeOldGames() {
 
 // Function to fetch and update NBA and NFL games
 async function updateGames() {
-    purgeOldGames(); // Ensure purge happens before every update
+    await purgeOldGames(); // Ensure purge happens before every update
     try {
         console.log("Fetching games from API...");
         
@@ -69,59 +69,16 @@ async function updateGames() {
     }
 }
 
-// Schedule weekly purge and daily updates at 4 AM ET
-cron.schedule('0 4 * * 0', async () => { // Runs every Sunday at 4 AM ET
-    console.log('Running scheduled weekly purge...');
-    await purgeOldGames();
-});
-
-cron.schedule('0 4 * * *', async () => { // Runs daily at 4 AM ET
-    console.log('Running scheduled game update...');
-    updateGames();
-});
-
-// Manual games update route
-app.get('/update-games', async (req, res) => {
+// Fetch NBA and NFL Games for the current game week
+app.get('/games', async (req, res) => {
     try {
-        await updateGames();
-        res.json({ message: 'Games updated successfully' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// User selection route
-app.post('/select-game', async (req, res) => {
-    const { user_id, game_id, league } = req.body;
-    try {
-        // Ensure the user has not already made a pick for the week
-        const existingPick = await pool.query(
-            "SELECT * FROM user_selections WHERE user_id = $1 AND created_at >= date_trunc('week', NOW())",
-            [user_id]
-        );
+        const gameWeekStart = "date_trunc('week', NOW()) + INTERVAL '1 day'"; // Tuesday start
+        const gameWeekEnd = "date_trunc('week', NOW()) + INTERVAL '7 days'"; // Monday end
         
-        if (existingPick.rows.length > 0) {
-            return res.status(400).json({ error: "You have already made a pick for this week." });
-        }
+        const nbaGames = await pool.query(`SELECT * FROM nba_games WHERE game_date >= ${gameWeekStart} AND game_date <= ${gameWeekEnd} ORDER BY game_date ASC`);
+        const nflGames = await pool.query(`SELECT * FROM nfl_games WHERE game_date >= ${gameWeekStart} AND game_date <= ${gameWeekEnd} ORDER BY game_date ASC`);
         
-        // Insert the new pick
-        await pool.query(
-            "INSERT INTO user_selections (user_id, game_id, league, created_at) VALUES ($1, $2, $3, NOW())",
-            [user_id, game_id, league]
-        );
-        res.json({ message: "Game selection successful!" });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Fetch all user selections for the week
-app.get('/selections', async (req, res) => {
-    try {
-        const selections = await pool.query(
-            "SELECT * FROM user_selections WHERE created_at >= date_trunc('week', NOW())"
-        );
-        res.json(selections.rows);
+        res.json({ nba: nbaGames.rows, nfl: nflGames.rows });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
