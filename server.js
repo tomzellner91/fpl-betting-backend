@@ -17,9 +17,23 @@ const SPORTS_ODDS_API_URL = 'https://api.the-odds-api.com/v4/sports/';
 app.use(cors());
 app.use(bodyParser.json());
 
+// Function to clear previous week's games before updating
+async function purgeOldGames() {
+    try {
+        console.log("Purging old games...");
+        await pool.query("DELETE FROM nba_games WHERE game_date < date_trunc('week', NOW())");
+        await pool.query("DELETE FROM nfl_games WHERE game_date < date_trunc('week', NOW())");
+        console.log("Old games purged successfully.");
+    } catch (error) {
+        console.error("Error purging old games:", error);
+    }
+}
+
 // Function to fetch and update NBA and NFL games
 async function updateGames() {
+    await purgeOldGames(); // Ensure purge happens before every update
     try {
+        await purgeOldGames(); // Purge old games before updating
         console.log("Fetching games from API...");
         
         const leagues = ['basketball_nba', 'americanfootball_nfl'];
@@ -53,9 +67,18 @@ async function updateGames() {
     }
 }
 
-// Schedule daily updates at midnight UTC
-cron.schedule('0 0 * * *', () => {
+// Schedule weekly purge and daily updates at midnight UTC
+cron.schedule('0 4 * * 0', async () => { // Runs every Sunday at 4 AM ET
+    console.log('Running scheduled weekly purge...');
+    await purgeOldGames();
+});
+    await purgeOldGames();
+});
+
+cron.schedule('0 4 * * *', () => { // Runs daily at 4 AM ET
     console.log('Running scheduled game update...');
+    updateGames();
+});
     updateGames();
 });
 
@@ -69,11 +92,11 @@ app.get('/update-games', async (req, res) => {
     }
 });
 
-// Fetch NBA and NFL Games
+// Fetch NBA and NFL Games for the current week
 app.get('/games', async (req, res) => {
     try {
-        const nbaGames = await pool.query('SELECT * FROM nba_games WHERE game_date >= NOW() ORDER BY game_date ASC');
-        const nflGames = await pool.query('SELECT * FROM nfl_games WHERE game_date >= NOW() ORDER BY game_date ASC');
+        const nbaGames = await pool.query("SELECT * FROM nba_games WHERE game_date >= date_trunc('week', NOW()) ORDER BY game_date ASC");
+        const nflGames = await pool.query("SELECT * FROM nfl_games WHERE game_date >= date_trunc('week', NOW()) ORDER BY game_date ASC");
         res.json({ nba: nbaGames.rows, nfl: nflGames.rows });
     } catch (error) {
         res.status(500).json({ error: error.message });
