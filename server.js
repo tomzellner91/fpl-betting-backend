@@ -23,7 +23,8 @@ async function purgeOldGames() {
         console.log("Purging old games...");
         await pool.query("DELETE FROM nba_games WHERE game_date < date_trunc('week', NOW())");
         await pool.query("DELETE FROM nfl_games WHERE game_date < date_trunc('week', NOW())");
-        console.log("Old games purged successfully.");
+        await pool.query("DELETE FROM user_selections WHERE created_at < date_trunc('week', NOW())");
+        console.log("Old games and selections purged successfully.");
     } catch (error) {
         console.error("Error purging old games:", error);
     }
@@ -33,7 +34,6 @@ async function purgeOldGames() {
 async function updateGames() {
     await purgeOldGames(); // Ensure purge happens before every update
     try {
-        await purgeOldGames(); // Purge old games before updating
         console.log("Fetching games from API...");
         
         const leagues = ['basketball_nba', 'americanfootball_nfl'];
@@ -67,18 +67,14 @@ async function updateGames() {
     }
 }
 
-// Schedule weekly purge and daily updates at midnight UTC
+// Schedule weekly purge and daily updates at 4 AM ET
 cron.schedule('0 4 * * 0', async () => { // Runs every Sunday at 4 AM ET
     console.log('Running scheduled weekly purge...');
-    await purgeOldGames();
-});
     await purgeOldGames();
 });
 
 cron.schedule('0 4 * * *', () => { // Runs daily at 4 AM ET
     console.log('Running scheduled game update...');
-    updateGames();
-});
     updateGames();
 });
 
@@ -92,12 +88,38 @@ app.get('/update-games', async (req, res) => {
     }
 });
 
-// Fetch NBA and NFL Games for the current week
-app.get('/games', async (req, res) => {
+// User selection route
+app.post('/select-game', async (req, res) => {
+    const { user_id, game_id, league } = req.body;
     try {
-        const nbaGames = await pool.query("SELECT * FROM nba_games WHERE game_date >= date_trunc('week', NOW()) ORDER BY game_date ASC");
-        const nflGames = await pool.query("SELECT * FROM nfl_games WHERE game_date >= date_trunc('week', NOW()) ORDER BY game_date ASC");
-        res.json({ nba: nbaGames.rows, nfl: nflGames.rows });
+        // Ensure the user has not already made a pick for the week
+        const existingPick = await pool.query(
+            "SELECT * FROM user_selections WHERE user_id = $1 AND created_at >= date_trunc('week', NOW())",
+            [user_id]
+        );
+        
+        if (existingPick.rows.length > 0) {
+            return res.status(400).json({ error: "You have already made a pick for this week." });
+        }
+        
+        // Insert the new pick
+        await pool.query(
+            "INSERT INTO user_selections (user_id, game_id, league, created_at) VALUES ($1, $2, $3, NOW())",
+            [user_id, game_id, league]
+        );
+        res.json({ message: "Game selection successful!" });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Fetch all user selections for the week
+app.get('/selections', async (req, res) => {
+    try {
+        const selections = await pool.query(
+            "SELECT * FROM user_selections WHERE created_at >= date_trunc('week', NOW())"
+        );
+        res.json(selections.rows);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
