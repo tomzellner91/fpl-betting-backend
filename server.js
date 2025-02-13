@@ -68,12 +68,12 @@ async function updateGames() {
 }
 
 // Schedule weekly purge and daily updates at 4 AM ET
-cron.schedule('0 4 * * 0', () => { // Runs every Sunday at 4 AM ET
+cron.schedule('0 4 * * 0', async () => { // Runs every Sunday at 4 AM ET
     console.log('Running scheduled weekly purge...');
     await purgeOldGames();
 });
 
-cron.schedule('0 4 * * *', () => { // Runs daily at 4 AM ET
+cron.schedule('0 4 * * *', async () => { // Runs daily at 4 AM ET
     console.log('Running scheduled game update...');
     updateGames();
 });
