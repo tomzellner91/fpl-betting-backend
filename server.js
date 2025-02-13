@@ -12,7 +12,7 @@ const app = express();
 const pool = new Pool({ connectionString: 'postgresql://fpl_betting_db_user:yTPRRJ9PlvdQknaLZZIKAPOdcrdurigF@dpg-cumib12n91rc73dvdtd0-a.oregon-postgres.render.com/fpl_betting_db', ssl: { rejectUnauthorized: false } });
 const SECRET_KEY = process.env.JWT_SECRET || 'supersecretkey';
 const SPORTS_ODDS_API_KEY = process.env.SPORTS_ODDS_API_KEY;
-const SPORTS_ODDS_API_URL = 'https://api.sportsodds.io/v1/odds';
+const SPORTS_ODDS_API_URL = 'https://api.the-odds-api.com/v4/sports/';
 
 app.use(cors());
 app.use(bodyParser.json());
