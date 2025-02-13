@@ -25,7 +25,6 @@ async function purgeOldGames() {
         console.log("Purging old games...");
         await pool.query(`DELETE FROM nba_games WHERE game_date < ${gameWeekStart} OR game_date > ${gameWeekEnd}`);
         await pool.query(`DELETE FROM nfl_games WHERE game_date < ${gameWeekStart} OR game_date > ${gameWeekEnd}`);
-        // Not purging user selections, only game data
         console.log("Old games purged successfully.");
     } catch (error) {
         console.error("Error purging old games:", error);
@@ -68,6 +67,16 @@ async function updateGames() {
         console.error('Error updating games:', error);
     }
 }
+
+// Manual update games route
+app.get('/update-games', async (req, res) => {
+    try {
+        await updateGames();
+        res.json({ message: 'Games updated successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // Fetch NBA and NFL Games for the current game week
 app.get('/games', async (req, res) => {
